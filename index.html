@@ -104,7 +104,7 @@
     <table id="grid"></table>
   </div>
 
-  <p class="hint">The top row takes text, all other rows take only numerical values without commas (decimals mode)</p>
+  <p class="hint">The top row takes text, all other rows take only numerical values without commas (decimals mode). Saved column names keep letters only &mdash; spaces become underscores, parentheses and other characters are dropped.</p>
 </div>
 
 <script>
@@ -218,6 +218,16 @@
     return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
   }
 
+  // Header cells are written as bare letters and underscores: spaces become
+  // underscores, parentheses and every other non-letter are dropped, and runs
+  // of underscores collapse. "Mass (g)" saves as "Mass_g".
+  function sanitizeHeader(v){
+    return v.replace(/\s+/g, "_")
+            .replace(/[^A-Za-z_]/g, "")
+            .replace(/_{2,}/g, "_")
+            .replace(/^_+|_+$/g, "");
+  }
+
   function usedBounds(){
     var maxR = 0, maxC = 0;
     for (var key in state.data){
@@ -234,7 +244,10 @@
     var lines = [];
     for (var r = 0; r < b.rows; r++){
       var row = [];
-      for (var c = 0; c < b.cols; c++) row.push(quote(get(r, c)));
+      for (var c = 0; c < b.cols; c++){
+        var v = get(r, c);
+        row.push(quote(r < HEADER_ROWS ? sanitizeHeader(v) : v));
+      }
       lines.push(row.join(","));
     }
     return lines.join("\r\n");
