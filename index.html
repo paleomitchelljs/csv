@@ -47,23 +47,24 @@
   .spacer{flex:1 1 auto}
   .gridbox{
     background:var(--panel); border:1px solid var(--line); border-radius:10px;
-    overflow:auto; max-height:70vh;
+    overflow:auto; max-height:70vh; width:fit-content; max-width:100%;
   }
-  table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
+  table{border-collapse:separate;border-spacing:0;width:max-content}
   th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:0}
   thead th{
     position:sticky; top:0; z-index:3; background:var(--head);
     font-size:12px; font-weight:600; color:var(--muted);
-    padding:6px 8px; text-align:center; min-width:130px;
+    padding:6px 8px; text-align:center; min-width:92px;
   }
   tbody th{
     position:sticky; left:0; z-index:2; background:var(--head);
     font-size:12px; color:var(--muted); font-weight:500;
-    padding:0 8px; text-align:right; min-width:44px;
+    padding:0 8px; text-align:right; white-space:nowrap; min-width:96px;
   }
-  thead th:first-child{left:0;z-index:4;min-width:44px}
+  tr.headrow th{font-weight:600}
+  thead th:first-child{left:0;z-index:4;min-width:96px}
   td input{
-    width:100%; min-width:130px; border:0; background:transparent; color:inherit;
+    width:100%; min-width:92px; border:0; background:transparent; color:inherit;
     font:inherit; padding:8px 10px; outline:none;
   }
   td input:focus{background:rgba(127,127,127,.14);box-shadow:inset 0 0 0 2px var(--accent)}
@@ -103,7 +104,7 @@
     <table id="grid"></table>
   </div>
 
-  <p class="hint">Row 1 holds column names (any text). Every row below it takes numbers only &mdash; digits, one decimal point, an optional leading minus. Commas are stripped as you type.</p>
+  <p class="hint">The top row takes text, all other rows take only numerical values without commas (decimals mode)</p>
 </div>
 
 <script>
@@ -111,7 +112,7 @@
   "use strict";
 
   var HEADER_ROWS = 1;
-  var state = { rows: 9, cols: 4, data: {} };   // data["r,c"] = string
+  var state = { rows: 21, cols: 5, data: {} };   // data["r,c"] = string
 
   var grid     = document.getElementById("grid");
   var titleEl  = document.getElementById("title");
@@ -157,7 +158,8 @@
     html += "</tr></thead><tbody>";
 
     for (var r = 0; r < state.rows; r++){
-      html += '<tr class="' + (r < HEADER_ROWS ? "headrow" : "") + '"><th>' + (r + 1) + "</th>";
+      var label = r < HEADER_ROWS ? "column name" : r;
+      html += '<tr class="' + (r < HEADER_ROWS ? "headrow" : "") + '"><th>' + label + "</th>";
       for (var c2 = 0; c2 < state.cols; c2++){
         var v = get(r, c2).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
         html += '<td><input type="text" spellcheck="false" autocomplete="off"' +
