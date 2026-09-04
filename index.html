@@ -104,7 +104,7 @@
     <table id="grid"></table>
   </div>
 
-  <p class="hint">The top row takes text, all other rows take only numerical values without commas (decimals mode). Saved column names keep letters only &mdash; spaces become underscores, parentheses and other characters are dropped.</p>
+  <p class="hint">The top row takes text, all other rows take only numerical values without commas (decimals mode). Saved column names keep letters and numerals only &mdash; spaces become underscores, parentheses and other characters are dropped.</p>
 </div>
 
 <script>
@@ -218,12 +218,13 @@
     return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
   }
 
-  // Header cells are written as bare letters and underscores: spaces become
-  // underscores, parentheses and every other non-letter are dropped, and runs
-  // of underscores collapse. "Mass (g)" saves as "Mass_g".
+  // Header cells are written as bare letters, digits and underscores: spaces
+  // become underscores, parentheses, accented letters and every other
+  // non-alphanumeric character are dropped, and runs of underscores collapse.
+  // "Mass (g) 2" saves as "Mass_g_2".
   function sanitizeHeader(v){
     return v.replace(/\s+/g, "_")
-            .replace(/[^A-Za-z_]/g, "")
+            .replace(/[^A-Za-z0-9_]/g, "")
             .replace(/_{2,}/g, "_")
             .replace(/^_+|_+$/g, "");
   }

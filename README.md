@@ -8,7 +8,7 @@ Live: https://paleomitchelljs.github.io/csv/
 
 Type a name in the box at the top. It gets lowercased, spaces become underscores, and that's the download name (`fossil counts` becomes `fossil_counts.csv`).
 
-The top row is labeled *column name* and takes any text, but it is cleaned up on the way out: spaces become underscores and everything that isn't a letter -- parentheses, digits, punctuation, accents -- is dropped, so `Mass (g)` saves as `Mass_g`. The grid keeps what you typed; only the saved file is scrubbed. The numbered rows under it -- 1, 2, 3 and on down -- take numbers only -- digits, one decimal point, an optional leading minus. Commas are stripped as you type, so a pasted `1,234.50` lands as `1234.50` and won't split a field.
+The top row is labeled *column name* and takes any text, but it is cleaned up on the way out: spaces become underscores and everything that isn't a letter or a numeral -- parentheses, punctuation, accents -- is dropped, so `Mass (g) 2` saves as `Mass_g_2`. The grid keeps what you typed; only the saved file is scrubbed. The numbered rows under it -- 1, 2, 3 and on down -- take numbers only -- digits, one decimal point, an optional leading minus. Commas are stripped as you type, so a pasted `1,234.50` lands as `1234.50` and won't split a field.
 
 Copy CSV puts the file on your clipboard. Download CSV writes it to disk. Trailing empty rows and columns are dropped from the output, so the extra grid you didn't fill in costs nothing.
 
