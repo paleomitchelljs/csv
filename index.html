@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSV Builder</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1c1f24; --muted:#6b7280;
+    --line:#dfe3e8; --accent:#2f6f4e; --accent-ink:#ffffff;
+    --head:#eef1f4; --bad:#c0392b; --badbg:#fdecea;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#15181c; --panel:#1c2026; --ink:#e8eaed; --muted:#9aa3ad;
+      --line:#2c333b; --accent:#4f9d76; --accent-ink:#0f1216;
+      --head:#232931; --bad:#ff8a80; --badbg:#3a2020;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:16px;
+  }
+  .wrap{max-width:1100px;margin:0 auto}
+  header{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px; margin-bottom:12px;
+  }
+  .titlerow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .titlerow label{font-weight:600;white-space:nowrap}
+  #title{
+    flex:1 1 240px; min-width:180px; padding:9px 11px; font-size:16px;
+    border:1px solid var(--line); border-radius:7px; background:var(--bg); color:var(--ink);
+    text-transform:lowercase;
+  }
+  #filename{color:var(--muted);font-size:13px;white-space:nowrap}
+  .tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  button{
+    font:inherit; padding:8px 13px; border-radius:7px; border:1px solid var(--line);
+    background:var(--panel); color:var(--ink); cursor:pointer;
+  }
+  button:hover{border-color:var(--muted)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+  .spacer{flex:1 1 auto}
+  .gridbox{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    overflow:auto; max-height:70vh;
+  }
+  table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
+  th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:0}
+  thead th{
+    position:sticky; top:0; z-index:3; background:var(--head);
+    font-size:12px; font-weight:600; color:var(--muted);
+    padding:6px 8px; text-align:center; min-width:130px;
+  }
+  tbody th{
+    position:sticky; left:0; z-index:2; background:var(--head);
+    font-size:12px; color:var(--muted); font-weight:500;
+    padding:0 8px; text-align:right; min-width:44px;
+  }
+  thead th:first-child{left:0;z-index:4;min-width:44px}
+  td input{
+    width:100%; min-width:130px; border:0; background:transparent; color:inherit;
+    font:inherit; padding:8px 10px; outline:none;
+  }
+  td input:focus{background:rgba(127,127,127,.14);box-shadow:inset 0 0 0 2px var(--accent)}
+  tr.headrow td input{font-weight:600}
+  tr:not(.headrow) td input{text-align:right;font-variant-numeric:tabular-nums}
+  td input.bad{background:var(--badbg);color:var(--bad)}
+  .hint{color:var(--muted);font-size:13px;margin:10px 2px 0}
+  #status{
+    display:inline-block; margin-left:8px; font-size:13px; color:var(--accent);
+    opacity:0; transition:opacity .15s;
+  }
+  #status.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="titlerow">
+      <label for="title">File name</label>
+      <input id="title" type="text" placeholder="my data" autocomplete="off" spellcheck="false">
+      <span id="filename">data.csv</span>
+    </div>
+    <div class="tools">
+      <button class="primary" id="download">Download CSV</button>
+      <button id="copy">Copy CSV</button>
+      <span id="status"></span>
+      <span class="spacer"></span>
+      <button id="addrow">+ Row</button>
+      <button id="addcol">+ Column</button>
+      <button id="delrow">&minus; Row</button>
+      <button id="delcol">&minus; Column</button>
+      <button id="clear">Clear</button>
+    </div>
+  </header>
+
+  <div class="gridbox">
+    <table id="grid"></table>
+  </div>
+
+  <p class="hint">Row 1 holds column names (any text). Every row below it takes numbers only &mdash; digits, one decimal point, an optional leading minus. Commas are stripped as you type.</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var HEADER_ROWS = 1;
+  var state = { rows: 9, cols: 4, data: {} };   // data["r,c"] = string
+
+  var grid     = document.getElementById("grid");
+  var titleEl  = document.getElementById("title");
+  var fnameEl  = document.getElementById("filename");
+  var statusEl = document.getElementById("status");
+
+  /* ---------- values ---------- */
+
+  function get(r, c){ return state.data[r + "," + c] || ""; }
+  function set(r, c, v){
+    if (v === "") delete state.data[r + "," + c];
+    else state.data[r + "," + c] = v;
+  }
+
+  // Numeric cells: keep digits, one dot, one leading minus. Commas and
+  // everything else are dropped so a paste of "1,234.50" lands as 1234.50.
+  function sanitizeNumber(v){
+    var out = "", seenDot = false;
+    for (var i = 0; i < v.length; i++){
+      var ch = v[i];
+      if (ch >= "0" && ch <= "9") out += ch;
+      else if (ch === "." && !seenDot){ out += ch; seenDot = true; }
+      else if (ch === "-" && out.length === 0) out += ch;
+    }
+    return out;
+  }
+
+  function colName(i){
+    var s = "";
+    do { s = String.fromCharCode(65 + (i % 26)) + s; i = Math.floor(i / 26) - 1; } while (i >= 0);
+    return s;
+  }
+
+  /* ---------- grid ---------- */
+
+  function render(){
+    var focus = document.activeElement;
+    var keepR = focus && focus.dataset ? focus.dataset.r : null;
+    var keepC = focus && focus.dataset ? focus.dataset.c : null;
+
+    var html = "<thead><tr><th></th>";
+    for (var c = 0; c < state.cols; c++) html += "<th>" + colName(c) + "</th>";
+    html += "</tr></thead><tbody>";
+
+    for (var r = 0; r < state.rows; r++){
+      html += '<tr class="' + (r < HEADER_ROWS ? "headrow" : "") + '"><th>' + (r + 1) + "</th>";
+      for (var c2 = 0; c2 < state.cols; c2++){
+        var v = get(r, c2).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+        html += '<td><input type="text" spellcheck="false" autocomplete="off"' +
+                (r < HEADER_ROWS ? '' : ' inputmode="decimal"') +
+                ' data-r="' + r + '" data-c="' + c2 + '" value="' + v + '"></td>';
+      }
+      html += "</tr>";
+    }
+    grid.innerHTML = html + "</tbody>";
+
+    if (keepR !== null){
+      var again = grid.querySelector('input[data-r="' + keepR + '"][data-c="' + keepC + '"]');
+      if (again) again.focus();
+    }
+  }
+
+  function cellAt(r, c){
+    return grid.querySelector('input[data-r="' + r + '"][data-c="' + c + '"]');
+  }
+
+  grid.addEventListener("input", function(e){
+    var el = e.target;
+    if (el.tagName !== "INPUT") return;
+    var r = +el.dataset.r, c = +el.dataset.c;
+    if (r >= HEADER_ROWS){
+      var clean = sanitizeNumber(el.value);
+      if (clean !== el.value){
+        var at = el.selectionStart - (el.value.length - clean.length);
+        el.value = clean;
+        try { el.setSelectionRange(at, at); } catch(_){}
+      }
+    }
+    set(r, c, el.value);
+  });
+
+  grid.addEventListener("keydown", function(e){
+    var el = e.target;
+    if (el.tagName !== "INPUT") return;
+    var r = +el.dataset.r, c = +el.dataset.c, to = null;
+
+    if (e.key === "ArrowUp")                       to = cellAt(r - 1, c);
+    else if (e.key === "ArrowDown" || e.key === "Enter") to = cellAt(r + 1, c);
+    else if (e.key === "ArrowLeft"  && el.selectionStart === 0 && el.selectionEnd === 0)
+      to = cellAt(r, c - 1);
+    else if (e.key === "ArrowRight" && el.selectionStart === el.value.length)
+      to = cellAt(r, c + 1);
+    else return;
+
+    if (e.key === "Enter" && !to){ addRow(); to = cellAt(r + 1, c); }
+    if (to){ e.preventDefault(); to.focus(); to.select(); }
+  });
+
+  /* ---------- csv ---------- */
+
+  function quote(v){
+    return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  }
+
+  function usedBounds(){
+    var maxR = 0, maxC = 0;
+    for (var key in state.data){
+      if (state.data[key] === "") continue;
+      var p = key.split(",");
+      maxR = Math.max(maxR, +p[0] + 1);
+      maxC = Math.max(maxC, +p[1] + 1);
+    }
+    return { rows: maxR, cols: maxC };
+  }
+
+  function toCSV(){
+    var b = usedBounds();
+    var lines = [];
+    for (var r = 0; r < b.rows; r++){
+      var row = [];
+      for (var c = 0; c < b.cols; c++) row.push(quote(get(r, c)));
+      lines.push(row.join(","));
+    }
+    return lines.join("\r\n");
+  }
+
+  /* ---------- title ---------- */
+
+  function fileBase(){
+    var t = titleEl.value.toLowerCase().trim().replace(/\s+/g, "_");
+    t = t.replace(/[\/\\:*?"<>|]/g, "").replace(/^\.+/, "");
+    return t || "data";
+  }
+
+  function refreshName(){
+    titleEl.value = titleEl.value.toLowerCase();
+    fnameEl.textContent = fileBase() + ".csv";
+  }
+
+  titleEl.addEventListener("input", function(){
+    var at = titleEl.selectionStart;
+    refreshName();
+    try { titleEl.setSelectionRange(at, at); } catch(_){}
+  });
+
+  /* ---------- actions ---------- */
+
+  function flash(msg){
+    statusEl.textContent = msg;
+    statusEl.classList.add("show");
+    clearTimeout(flash.t);
+    flash.t = setTimeout(function(){ statusEl.classList.remove("show"); }, 1800);
+  }
+
+  function addRow(){ state.rows++; render(); }
+  function addCol(){ state.cols++; render(); }
+
+  document.getElementById("addrow").addEventListener("click", addRow);
+  document.getElementById("addcol").addEventListener("click", addCol);
+
+  document.getElementById("delrow").addEventListener("click", function(){
+    if (state.rows <= HEADER_ROWS + 1) return;
+    var r = state.rows - 1;
+    for (var c = 0; c < state.cols; c++) set(r, c, "");
+    state.rows--; render();
+  });
+
+  document.getElementById("delcol").addEventListener("click", function(){
+    if (state.cols <= 1) return;
+    var c = state.cols - 1;
+    for (var r = 0; r < state.rows; r++) set(r, c, "");
+    state.cols--; render();
+  });
+
+  document.getElementById("clear").addEventListener("click", function(){
+    if (!confirm("Clear every cell?")) return;
+    state.data = {}; render();
+  });
+
+  document.getElementById("copy").addEventListener("click", function(){
+    var text = toCSV();
+    function fallback(){
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); flash("Copied"); }
+      catch(_){ flash("Copy failed"); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ flash("Copied"); }, fallback);
+    } else fallback();
+  });
+
+  document.getElementById("download").addEventListener("click", function(){
+    var blob = new Blob([toCSV()], { type: "text/csv;charset=utf-8" });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement("a");
+    a.href = url;
+    a.download = fileBase() + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    flash("Downloaded " + fileBase() + ".csv");
+  });
+
+  render();
+  refreshName();
+})();
+</script>
+</body>
+</html>
